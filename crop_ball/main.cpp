@@ -4,6 +4,8 @@
 #include <sstream>
 #include <iomanip>
 #include <opencv2/opencv.hpp>
+#include <chrono>
+
 namespace fs = std::experimental::filesystem;
 
 int detectBall(DetectorYOLO &dyolo, cv::Mat &src, struct BoundingBox &ball_v);
@@ -33,9 +35,11 @@ int main(int argc, char** argv){
             std::cout << img_path << std::endl;
             cv::Mat img = cv::imread(img_path);
             struct BoundingBox ball_v;
+             auto start_detect = std::chrono::high_resolution_clock::now();
             if(detectBall(dyolo,img,ball_v) )continue;
-
+             auto end_detect = std::chrono::high_resolution_clock::now();
             // separate_label
+             auto start_label_crop = std::chrono::high_resolution_clock::now();
             cv::Mat label_16u;
             make_labelimage(img, label_16u, color_table);
             cv::Mat label;
@@ -44,11 +48,15 @@ int main(int argc, char** argv){
             cv::Mat show_ball;
             cropBall(label,c_ball,ball_v);
             cropBall(img,show_ball,ball_v);
-
+             auto end_label_crop = std::chrono::high_resolution_clock::now();
             // detect_by_hough
+             auto start_blur = std::chrono::high_resolution_clock::now();
             cv::GaussianBlur(c_ball, c_ball, cv::Size(45, 45), 0, 0);
+             auto end_blur = std::chrono::high_resolution_clock::now();
             std::vector<cv::Vec3f> circles;
+             auto start_hough = std::chrono::high_resolution_clock::now();
             cv::HoughCircles(c_ball, circles, CV_HOUGH_GRADIENT, 2, 100, 100, 10, 10, 100);
+             auto end_hough = std::chrono::high_resolution_clock::now();
             if(circles.size() > 0)
             {
                 cv::Point center(cvRound(circles[0][0]),cvRound(circles[0][1] ));
@@ -59,6 +67,18 @@ int main(int argc, char** argv){
             std::string write_name=output_dir.string() + "/" + i.path().filename().string();
             cv::imwrite(write_name,c_ball);
             // show
+             auto dur_detect = end_detect - start_detect;
+             auto dur_label_crop = end_label_crop - start_label_crop;
+             auto dur_blur = end_blur - start_blur;
+             auto dur_hough = end_hough - start_hough;
+             auto msec_detect = std::chrono::duration_cast<std::chrono::milliseconds>(dur_detect).count();
+             auto msec_label_crop = std::chrono::duration_cast<std::chrono::milliseconds>(dur_label_crop).count();
+             auto msec_blur = std::chrono::duration_cast<std::chrono::milliseconds>(dur_blur).count();
+             auto msec_hough = std::chrono::duration_cast<std::chrono::milliseconds>(dur_hough).count();
+             std::cout << msec_detect << " milli sec \n";
+             std::cout << msec_label_crop << " milli sec \n";
+             std::cout << msec_blur << " milli sec \n";
+             std::cout << msec_hough << " milli sec \n";
             cv::namedWindow("detect", CV_WINDOW_NORMAL);
             cv::imshow("detect", show_ball);
             cv::moveWindow("detect", 0, 0);
@@ -75,7 +95,6 @@ int main(int argc, char** argv){
         }
         cv::destroyAllWindows();
     }
-
     return 0;
 }
 
