@@ -35,33 +35,47 @@ int main(int argc, char** argv){
             struct BoundingBox ball_v;
             detectBall(dyolo,img,ball_v);
 
+            // separate_label
             cv::Mat label_16u;
             make_labelimage(img, label_16u, color_table);
             cv::Mat label;
             separate_labelimage(COLOR_GREEN, label_16u, label);
             cv::Mat c_ball;
+            cv::Mat show_ball;
             cropBall(label,c_ball,ball_v);
-            //add
+            cropBall(img,show_ball,ball_v);
+
+            // detect_by_hough
             cv::Mat d_ball;
-            cv::medianBlur(c_ball, d_ball, 5);
-            cv::resize(d_ball, d_ball, cv::Size(100, 100));
-            //cv::GaussianBlur(d_ball, d_ball. Size(1,1), 0, 0)
+            cv::resize(c_ball, d_ball, cv::Size(), 50.0/c_ball.rows, 50.0/c_ball.rows);
+            cv::GaussianBlur(d_ball, d_ball, cv::Size(25, 25), 0, 0);
             std::vector<cv::Vec3f> circles;
-            cv::HoughCircles(d_ball, circles, CV_HOUGH_GRADIENT, 2, 100, 20, 10, 0, 400);
+            cv::HoughCircles(d_ball, circles, CV_HOUGH_GRADIENT, 2, 100, 200, 35, 0, 200);
             if(circles.size() == 0)
             {
-                std::cout << "skip" << std::endl;
-                continue;
+               std::cout << "skip" << std::endl;
+               goto skip;
             }
-            cv::circle(d_ball, cv::Point(circles[0][0], circles[0][1]), circles[0][2], cv::Scalar(0, 0, 225), 2, 8, 0);
-            cv::circle(d_ball, cv::Point(circles[0][0], circles[0][1]), 1, cv::Scalar(0, 255, 0), 1, 4, 0);
+            cv::circle(show_ball, cv::Point(circles[0][0], circles[0][1]), circles[0][2], cv::Scalar(0, 0, 225), 2, 8, 0);
+            cv::circle(show_ball, cv::Point(circles[0][0], circles[0][1]), 1, cv::Scalar(0, 255, 0), 1, 4, 0);
             std::cout << "success" << std::endl;
+            skip:
             std::string write_name=output_dir.string() + "/" + i.path().filename().string();
             cv::imwrite(write_name,c_ball);
-            cv::imshow("detect", d_ball);
-            cv::imshow("cut",c_ball);
+
+            // show
+            cv::namedWindow("detect", CV_WINDOW_NORMAL);
+            cv::imshow("detect", show_ball);
+            cv::moveWindow("detect", 0, 0);
+            cv::namedWindow("cut", CV_WINDOW_NORMAL);
+            cv::imshow("cut",d_ball);
+            cv::moveWindow("cut", 500, 0);
+            cv::namedWindow("src", CV_WINDOW_NORMAL);
             cv::imshow("src",img);
+            cv::moveWindow("src", 0, 500);
+            cv::namedWindow("label", CV_WINDOW_NORMAL);
             cv::imshow("label",label);
+            cv::moveWindow("label", 500, 500);
             cv::waitKey(0);
             cv::destroyAllWindows();
         }
@@ -83,11 +97,16 @@ void detectBall(DetectorYOLO &dyolo, cv::Mat &src, struct BoundingBox &out){
 }
 
 void cropBall(cv::Mat &src, cv::Mat &dst, struct BoundingBox &bbox){
-    int X   = bbox.x * src.cols;
-    int Y   = bbox.y * src.rows;
-    int W   = bbox.w * src.cols;
-    int H   = bbox.h * src.rows;
-    cv::Mat img_cut(src,cv::Rect(X-W/2, Y-H/2,W,H));
+    int margin = 10;
+    int left    = (bbox.x - bbox.w/2) * src.cols - margin;
+    int top     = (bbox.y - bbox.h/2) * src.rows - margin;
+    int right   = (bbox.w + bbox.w/2) * src.cols + margin;
+    int bottom  = (bbox.h + bbox.h/2) * src.rows + margin;
+    if(left < 0) left = 0;
+    if(top < 0) top=0;
+    if(right > src.cols) right=src.cols;
+    if(bottom > src.rows) bottom=src.rows;
+    cv::Mat img_cut(src,cv::Rect(cv::Point(left,top),cv::Point(right,bottom)));
     dst = img_cut;
 }
 
